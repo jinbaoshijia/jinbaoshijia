@@ -12,7 +12,10 @@ class FeeCalculator {
         // 按钮事件
         document.getElementById('calculateBtn').addEventListener('click', () => this.calculateFees());
         document.getElementById('generateBtn').addEventListener('click', () => this.generateNotification());
-        document.getElementById('copyBtn').addEventListener('click', () => this.copyToClipboard());
+        document.getElementById('copyBtn').addEventListener('click', (e) => {
+            e.preventDefault();
+            this.copyToClipboard();
+        });
 
         // 实时计算（可选）
         this.setupRealTimeCalculation();
@@ -330,30 +333,44 @@ class FeeCalculator {
 
     async copyToClipboard() {
         const text = document.getElementById('notificationText').value;
-        if (!text) return;
-        
-        try {
-            await navigator.clipboard.writeText(text);
-            alert('内容已复制到剪贴板');
+        if (!text) {
+            alert('请先生成通知内容！');
             return;
-        } catch (err) {
-            console.error('Clipboard API failed:', err);
         }
 
-        // 降级方案
-        const textarea = document.createElement('textarea');
-        textarea.value = text;
-        textarea.style.position = 'fixed';
-        document.body.appendChild(textarea);
-        textarea.select();
-        
+        // Android优化方案
         try {
-            document.execCommand('copy');
-            alert('内容已复制');
+            if (/Android/.test(navigator.userAgent)) {
+                const blob = new Blob([text], {type: 'text/plain'});
+                await navigator.clipboard.write([
+                    new ClipboardItem({'text/plain': blob})
+                ]);
+            } else {
+                await navigator.clipboard.writeText(text);
+            }
+            alert('内容已复制到剪贴板');
         } catch (err) {
-            alert('复制失败，请手动选择文本复制');
-        } finally {
-            document.body.removeChild(textarea);
+            console.error('高级复制失败:', err);
+            
+            // 兼容性方案
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            textarea.style.position = 'fixed';
+            textarea.style.opacity = '0';
+            document.body.appendChild(textarea);
+            textarea.select();
+            
+            try {
+                if (document.execCommand('copy')) {
+                    alert('内容已复制');
+                } else {
+                    throw new Error('execCommand失败');
+                }
+            } catch (e) {
+                alert('自动复制失败，请长按文本选择复制');
+            } finally {
+                document.body.removeChild(textarea);
+            }
         }
         if (!text) {
             alert('请先生成通知内容！');
